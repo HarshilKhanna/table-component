@@ -3,7 +3,7 @@ import { AgGridReact } from 'ag-grid-react';
 import { ModuleRegistry, AllCommunityModule } from 'ag-grid-community';
 import 'ag-grid-community/styles/ag-grid.css';
 import 'ag-grid-community/styles/ag-theme-alpine.css';
-import { ColDef } from 'ag-grid-community';
+import { ColDef, ICellRendererParams } from 'ag-grid-community';
 import FilterPanel from './FilterPanel';
 import SortPanel from './SortPanel';
 import { SortState } from './SortPanel';
@@ -23,7 +23,14 @@ interface TaskData {
   triggeredTasks: number;
   openTasks: number;
   compliance: string;
-  [key: string]: string | number;
+  isGroupRow?: boolean;
+  isExpanded?: boolean;
+  [key: string]: string | number | boolean | undefined;
+}
+
+interface CustomCellRendererParams extends ICellRendererParams {
+  data: TaskData;
+  value: string;
 }
 
 interface SubdomainGroup {
@@ -60,21 +67,48 @@ const TaskTable: React.FC = () => {
     filters: {}
   });
   const [activeSorts, setActiveSorts] = useState<SortState[]>([]);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
 
-  const flatColumnDefs: ColDef[] = [
-    {
-      field: 'taskId',
-      headerName: 'Task ID',
-      sortable: true,
-      filter: true,
-      width: 100,
-    },
+  const columnDefs: ColDef[] = [
     {
       field: 'contractId',
       headerName: 'Contract ID',
       sortable: true,
       filter: true,
       width: 120,
+      cellRenderer: (params: CustomCellRendererParams) => {
+        if (params.data.isGroupRow) {
+          const isExpanded = params.data.isExpanded;
+          return (
+            <div 
+              style={{ 
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontWeight: 600,
+                color: '#1a73e8'
+              }}
+              onClick={() => toggleGroup(params.value as string)}
+            >
+              <span>{isExpanded ? '▼' : '▶'}</span>
+              {params.value}
+            </div>
+          );
+        }
+        return params.value;
+      }
+    },
+    {
+      field: 'taskId',
+      headerName: 'Task ID',
+      sortable: true,
+      filter: true,
+      width: 100,
+      cellRenderer: (params: CustomCellRendererParams) => {
+        if (params.data.isGroupRow) return '';
+        return params.value;
+      }
     },
     {
       field: 'obligationTitle',
@@ -85,6 +119,14 @@ const TaskTable: React.FC = () => {
       autoHeight: true,
       flex: 2,
       minWidth: 200,
+      cellRenderer: (params: CustomCellRendererParams) => {
+        if (params.data.isGroupRow) {
+          return (
+            <div style={{ fontWeight: 500 }}>{params.value}</div>
+          );
+        }
+        return params.value;
+      }
     },
     {
       field: 'category',
@@ -92,6 +134,10 @@ const TaskTable: React.FC = () => {
       sortable: true,
       filter: true,
       width: 120,
+      cellRenderer: (params: CustomCellRendererParams) => {
+        if (params.data.isGroupRow) return '';
+        return params.value;
+      }
     },
     {
       field: 'domain',
@@ -99,6 +145,10 @@ const TaskTable: React.FC = () => {
       sortable: true,
       filter: true,
       width: 120,
+      cellRenderer: (params: CustomCellRendererParams) => {
+        if (params.data.isGroupRow) return '';
+        return params.value;
+      }
     },
     {
       field: 'subdomain',
@@ -106,6 +156,10 @@ const TaskTable: React.FC = () => {
       sortable: true,
       filter: true,
       width: 130,
+      cellRenderer: (params: CustomCellRendererParams) => {
+        if (params.data.isGroupRow) return '';
+        return params.value;
+      }
     },
     {
       field: 'criticality',
@@ -113,6 +167,10 @@ const TaskTable: React.FC = () => {
       sortable: true,
       filter: true,
       width: 110,
+      cellRenderer: (params: CustomCellRendererParams) => {
+        if (params.data.isGroupRow) return '';
+        return params.value;
+      }
     },
     {
       field: 'owner',
@@ -120,6 +178,10 @@ const TaskTable: React.FC = () => {
       sortable: true,
       filter: true,
       width: 130,
+      cellRenderer: (params: CustomCellRendererParams) => {
+        if (params.data.isGroupRow) return '';
+        return params.value;
+      }
     },
     {
       field: 'triggeredTasks',
@@ -143,70 +205,14 @@ const TaskTable: React.FC = () => {
       sortable: true,
       filter: true,
       width: 120,
-    },
-  ];
-
-  const groupedColumnDefs: ColDef[] = [
-    {
-      field: 'taskId',
-      headerName: 'Task ID',
-      sortable: true,
-      filter: true,
-      width: 100,
-    },
-    {
-      field: 'obligationTitle',
-      headerName: 'Obligation Title',
-      sortable: true,
-      filter: true,
-      wrapText: true,
-      autoHeight: true,
-      flex: 2,
-      minWidth: 200,
-    },
-    {
-      field: 'domain',
-      headerName: 'Domain',
-      sortable: true,
-      filter: true,
-      width: 120,
-    },
-    {
-      field: 'criticality',
-      headerName: 'Criticality',
-      sortable: true,
-      filter: true,
-      width: 110,
-    },
-    {
-      field: 'owner',
-      headerName: 'Owner',
-      sortable: true,
-      filter: true,
-      width: 130,
-    },
-    {
-      field: 'triggeredTasks',
-      headerName: 'Triggered Tasks',
-      sortable: true,
-      filter: true,
-      type: 'numericColumn',
-      width: 130,
-    },
-    {
-      field: 'openTasks',
-      headerName: 'Open Tasks',
-      sortable: true,
-      filter: true,
-      type: 'numericColumn',
-      width: 110,
-    },
-    {
-      field: 'compliance',
-      headerName: 'Compliance',
-      sortable: true,
-      filter: true,
-      width: 120,
+      cellRenderer: (params: CustomCellRendererParams) => {
+        if (params.data.isGroupRow) return '';
+        return (
+          <span className={`compliance-status ${(params.value as string).toLowerCase()}`}>
+            {params.value}
+          </span>
+        );
+      }
     },
   ];
 
@@ -346,6 +352,266 @@ const TaskTable: React.FC = () => {
       triggeredTasks: 5,
       openTasks: 7,
       compliance: 'Pending'
+    },
+    {
+      taskId: 'T011',
+      contractId: 'C005',
+      obligationTitle: 'Data Privacy Compliance Review',
+      category: 'Legal',
+      domain: 'Compliance',
+      subdomain: 'Privacy',
+      criticality: 'High',
+      owner: 'Emma Davis',
+      triggeredTasks: 3,
+      openTasks: 4,
+      compliance: 'Pending'
+    },
+    {
+      taskId: 'T012',
+      contractId: 'C005',
+      obligationTitle: 'GDPR Documentation Update',
+      category: 'Legal',
+      domain: 'Compliance',
+      subdomain: 'Privacy',
+      criticality: 'High',
+      owner: 'Emma Davis',
+      triggeredTasks: 2,
+      openTasks: 2,
+      compliance: 'Compliant'
+    },
+    {
+      taskId: 'T013',
+      contractId: 'C006',
+      obligationTitle: 'Server Infrastructure Upgrade',
+      category: 'IT',
+      domain: 'Infrastructure',
+      subdomain: 'Hardware',
+      criticality: 'Medium',
+      owner: 'David Chen',
+      triggeredTasks: 5,
+      openTasks: 6,
+      compliance: 'Pending'
+    },
+    {
+      taskId: 'T014',
+      contractId: 'C006',
+      obligationTitle: 'Network Security Assessment',
+      category: 'Security',
+      domain: 'IT',
+      subdomain: 'Network',
+      criticality: 'High',
+      owner: 'David Chen',
+      triggeredTasks: 3,
+      openTasks: 4,
+      compliance: 'Non-Compliant'
+    },
+    {
+      taskId: 'T015',
+      contractId: 'C007',
+      obligationTitle: 'Employee Training Records Update',
+      category: 'HR',
+      domain: 'Training',
+      subdomain: 'Records',
+      criticality: 'Low',
+      owner: 'Sophie Turner',
+      triggeredTasks: 1,
+      openTasks: 2,
+      compliance: 'Compliant'
+    },
+    {
+      taskId: 'T016',
+      contractId: 'C007',
+      obligationTitle: 'Workplace Safety Audit',
+      category: 'HR',
+      domain: 'Safety',
+      subdomain: 'Audit',
+      criticality: 'Medium',
+      owner: 'Sophie Turner',
+      triggeredTasks: 4,
+      openTasks: 5,
+      compliance: 'Pending'
+    },
+    {
+      taskId: 'T017',
+      contractId: 'C008',
+      obligationTitle: 'Vendor Contract Review',
+      category: 'Legal',
+      domain: 'Contracts',
+      subdomain: 'Review',
+      criticality: 'Medium',
+      owner: 'James Wilson',
+      triggeredTasks: 2,
+      openTasks: 3,
+      compliance: 'Compliant'
+    },
+    {
+      taskId: 'T018',
+      contractId: 'C008',
+      obligationTitle: 'Supplier Agreement Update',
+      category: 'Legal',
+      domain: 'Contracts',
+      subdomain: 'Update',
+      criticality: 'Medium',
+      owner: 'James Wilson',
+      triggeredTasks: 1,
+      openTasks: 2,
+      compliance: 'Pending'
+    },
+    {
+      taskId: 'T019',
+      contractId: 'C009',
+      obligationTitle: 'Customer Data Migration',
+      category: 'IT',
+      domain: 'Data',
+      subdomain: 'Migration',
+      criticality: 'High',
+      owner: 'Linda Martinez',
+      triggeredTasks: 6,
+      openTasks: 8,
+      compliance: 'Non-Compliant'
+    },
+    {
+      taskId: 'T020',
+      contractId: 'C009',
+      obligationTitle: 'Database Backup Verification',
+      category: 'IT',
+      domain: 'Data',
+      subdomain: 'Backup',
+      criticality: 'High',
+      owner: 'Linda Martinez',
+      triggeredTasks: 2,
+      openTasks: 3,
+      compliance: 'Pending'
+    },
+    {
+      taskId: 'T021',
+      contractId: 'C010',
+      obligationTitle: 'Marketing Campaign Compliance',
+      category: 'Marketing',
+      domain: 'Compliance',
+      subdomain: 'Campaigns',
+      criticality: 'Medium',
+      owner: 'Tom Baker',
+      triggeredTasks: 3,
+      openTasks: 4,
+      compliance: 'Compliant'
+    },
+    {
+      taskId: 'T022',
+      contractId: 'C010',
+      obligationTitle: 'Social Media Policy Review',
+      category: 'Marketing',
+      domain: 'Policy',
+      subdomain: 'Review',
+      criticality: 'Low',
+      owner: 'Tom Baker',
+      triggeredTasks: 1,
+      openTasks: 2,
+      compliance: 'Compliant'
+    },
+    {
+      taskId: 'T023',
+      contractId: 'C011',
+      obligationTitle: 'Financial Audit Preparation',
+      category: 'Finance',
+      domain: 'Audit',
+      subdomain: 'Preparation',
+      criticality: 'High',
+      owner: 'Rachel Green',
+      triggeredTasks: 5,
+      openTasks: 7,
+      compliance: 'Pending'
+    },
+    {
+      taskId: 'T024',
+      contractId: 'C011',
+      obligationTitle: 'Tax Compliance Review',
+      category: 'Finance',
+      domain: 'Tax',
+      subdomain: 'Review',
+      criticality: 'High',
+      owner: 'Rachel Green',
+      triggeredTasks: 4,
+      openTasks: 5,
+      compliance: 'Non-Compliant'
+    },
+    {
+      taskId: 'T025',
+      contractId: 'C012',
+      obligationTitle: 'Product Safety Assessment',
+      category: 'Operations',
+      domain: 'Safety',
+      subdomain: 'Assessment',
+      criticality: 'High',
+      owner: 'Mark Thompson',
+      triggeredTasks: 3,
+      openTasks: 4,
+      compliance: 'Pending'
+    },
+    {
+      taskId: 'T026',
+      contractId: 'C012',
+      obligationTitle: 'Quality Control Process Update',
+      category: 'Operations',
+      domain: 'Quality',
+      subdomain: 'Process',
+      criticality: 'Medium',
+      owner: 'Mark Thompson',
+      triggeredTasks: 2,
+      openTasks: 3,
+      compliance: 'Compliant'
+    },
+    {
+      taskId: 'T027',
+      contractId: 'C013',
+      obligationTitle: 'Environmental Compliance Audit',
+      category: 'Operations',
+      domain: 'Environment',
+      subdomain: 'Audit',
+      criticality: 'High',
+      owner: 'Alice Cooper',
+      triggeredTasks: 4,
+      openTasks: 6,
+      compliance: 'Non-Compliant'
+    },
+    {
+      taskId: 'T028',
+      contractId: 'C013',
+      obligationTitle: 'Waste Management Review',
+      category: 'Operations',
+      domain: 'Environment',
+      subdomain: 'Management',
+      criticality: 'Medium',
+      owner: 'Alice Cooper',
+      triggeredTasks: 2,
+      openTasks: 3,
+      compliance: 'Pending'
+    },
+    {
+      taskId: 'T029',
+      contractId: 'C014',
+      obligationTitle: 'Software License Compliance',
+      category: 'IT',
+      domain: 'Licensing',
+      subdomain: 'Compliance',
+      criticality: 'Medium',
+      owner: 'Peter Parker',
+      triggeredTasks: 3,
+      openTasks: 4,
+      compliance: 'Compliant'
+    },
+    {
+      taskId: 'T030',
+      contractId: 'C014',
+      obligationTitle: 'IT Asset Inventory Update',
+      category: 'IT',
+      domain: 'Asset',
+      subdomain: 'Inventory',
+      criticality: 'Low',
+      owner: 'Peter Parker',
+      triggeredTasks: 1,
+      openTasks: 2,
+      compliance: 'Compliant'
     }
   ];
 
@@ -478,57 +744,99 @@ const TaskTable: React.FC = () => {
     return Object.values(groups);
   };
 
+  const toggleGroup = (contractId: string) => {
+    const newExpandedGroups = new Set(expandedGroups);
+    if (newExpandedGroups.has(contractId)) {
+      newExpandedGroups.delete(contractId);
+    } else {
+      newExpandedGroups.add(contractId);
+    }
+    setExpandedGroups(newExpandedGroups);
+  };
+
   const renderFlatView = () => (
-    <div className="ag-theme-alpine" style={{ width: '100%', height: '600px' }}>
+    <div className="ag-theme-alpine">
       <AgGridReact
-        columnDefs={flatColumnDefs}
-        defaultColDef={defaultColDef}
+        columnDefs={columnDefs}
         rowData={sortedAndFilteredData}
+        defaultColDef={defaultColDef}
+        animateRows={false}
         theme="legacy"
-        animateRows={true}
       />
     </div>
   );
 
-  const renderGroupedView = () => (
-    <div className="task-table">
-      {groupDataByHierarchy(sortedAndFilteredData).map(contract => (
-        <details key={contract.contractId} open className="contract-group">
-          <summary className="group-header contract-header">
-            Contract: {contract.contractId}
-          </summary>
-          <div className="category-container">
-            {Object.values(contract.categories).map(category => (
-              <details key={category.category} open className="category-group">
-                <summary className="group-header category-header">
-                  Category: {category.category}
-                </summary>
-                <div className="subdomain-container">
-                  {Object.values(category.subdomains).map(subdomain => (
-                    <details key={subdomain.subdomain} open className="subdomain-group">
-                      <summary className="group-header subdomain-header">
-                        Subdomain: {subdomain.subdomain}
-                      </summary>
-                      <div className="ag-theme-alpine" style={{ width: '100%', height: 'auto', minHeight: '150px' }}>
-                        <AgGridReact
-                          columnDefs={groupedColumnDefs}
-                          defaultColDef={defaultColDef}
-                          rowData={subdomain.tasks}
-                          theme="legacy"
-                          animateRows={true}
-                          domLayout="autoHeight"
-                        />
+  const renderGroupedView = () => {
+    const groupedByContract = sortedAndFilteredData.reduce((acc, task) => {
+      if (!acc[task.contractId]) {
+        acc[task.contractId] = [];
+      }
+      acc[task.contractId].push(task);
+      return acc;
+    }, {} as { [key: string]: TaskData[] });
+
+    return (
+      <div className="task-table">
+        <div className="static-headers">
+          <div className="header-cell">Group</div>
+          <div className="header-cell">Task ID</div>
+          <div className="header-cell">Obligation Title</div>
+          <div className="header-cell">Category</div>
+          <div className="header-cell">Domain</div>
+          <div className="header-cell">Subdomain</div>
+          <div className="header-cell">Criticality</div>
+          <div className="header-cell">Owner</div>
+          <div className="header-cell">Triggered Tasks</div>
+          <div className="header-cell">Open Tasks</div>
+          <div className="header-cell">Compliance</div>
+        </div>
+
+        <div className="groups-container">
+          {Object.entries(groupedByContract).map(([contractId, tasks]) => (
+            <div key={contractId} className="contract-group">
+              <div 
+                className={`group-row ${expandedGroups.has(contractId) ? 'expanded' : ''}`}
+                onClick={() => toggleGroup(contractId)}
+              >
+                <div className="group-title-cell">
+                  <span className="expand-icon">{expandedGroups.has(contractId) ? '▼' : '▶'}</span>
+                  <span className="group-title">{contractId}</span>
+                  <span className="task-count">({tasks.length})</span>
+                </div>
+                {/* Empty cells to maintain grid structure */}
+                {Array(10).fill(null).map((_, i) => (
+                  <div key={i} className="cell"></div>
+                ))}
+              </div>
+              {expandedGroups.has(contractId) && (
+                <div className="group-content">
+                  {tasks.map((task) => (
+                    <div key={task.taskId} className="task-row">
+                      <div className="cell"></div>
+                      <div className="cell">{task.taskId}</div>
+                      <div className="cell">{task.obligationTitle}</div>
+                      <div className="cell">{task.category}</div>
+                      <div className="cell">{task.domain}</div>
+                      <div className="cell">{task.subdomain}</div>
+                      <div className="cell">{task.criticality}</div>
+                      <div className="cell">{task.owner}</div>
+                      <div className="cell">{task.triggeredTasks}</div>
+                      <div className="cell">{task.openTasks}</div>
+                      <div className="cell">
+                        <span className={`compliance-status ${task.compliance.toLowerCase()}`}>
+                          {task.compliance}
+                        </span>
                       </div>
-                    </details>
+                    </div>
                   ))}
                 </div>
-              </details>
-            ))}
-          </div>
-        </details>
-      ))}
-    </div>
-  );
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="task-table-container">
@@ -546,7 +854,7 @@ const TaskTable: React.FC = () => {
           className="filter-button"
           onClick={() => setIsFilterPanelOpen(true)}
         >
-          <svg viewBox="0 0 24 24" fill="currentColor">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
             <path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/>
           </svg>
           Filter
@@ -555,7 +863,7 @@ const TaskTable: React.FC = () => {
           className="sort-button"
           onClick={() => setIsSortPanelOpen(true)}
         >
-          <svg viewBox="0 0 24 24" fill="currentColor">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
             <path d="M3 18h6v-2H3v2zM3 6v2h18V6H3zm0 7h12v-2H3v2z"/>
           </svg>
           Sort

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 interface FilterPanelProps {
   data: any[];
@@ -23,11 +23,145 @@ interface FilterRow {
   value: string | string[];
 }
 
+interface AutocompleteInputProps {
+  value: string;
+  onChange: (value: string) => void;
+  suggestions: string[];
+  placeholder?: string;
+  className?: string;
+}
+
+const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
+  value,
+  onChange,
+  suggestions,
+  placeholder,
+  className
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([]);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    // Only show suggestions if there's input text
+    if (value.length > 0) {
+      const filtered = suggestions.filter(
+        suggestion => suggestion.toLowerCase().includes(value.toLowerCase())
+      ).slice(0, 10); // Limit to 10 suggestions for better performance
+      setFilteredSuggestions(filtered);
+    } else {
+      setFilteredSuggestions([]);
+    }
+    setActiveIndex(-1);
+  }, [value, suggestions]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = e.target.value;
+    onChange(newValue);
+    setIsOpen(true);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // If no suggestions or not open, don't handle keyboard navigation
+    if (!isOpen || filteredSuggestions.length === 0) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setActiveIndex(prev => 
+          prev < filteredSuggestions.length - 1 ? prev + 1 : prev
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setActiveIndex(prev => prev > 0 ? prev - 1 : -1);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (activeIndex >= 0) {
+          handleSuggestionClick(filteredSuggestions[activeIndex]);
+        }
+        break;
+      case 'Escape':
+        setIsOpen(false);
+        setActiveIndex(-1);
+        break;
+      default:
+        break;
+    }
+  };
+
+  const handleSuggestionClick = (suggestion: string) => {
+    onChange(suggestion);
+    setIsOpen(false);
+    setActiveIndex(-1);
+    inputRef.current?.focus();
+  };
+
+  return (
+    <div 
+      ref={wrapperRef} 
+      className="autocomplete-wrapper"
+      role="combobox"
+      aria-expanded={isOpen}
+      aria-haspopup="listbox"
+      aria-owns="suggestions-list"
+    >
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={handleInputChange}
+        onKeyDown={handleKeyDown}
+        onFocus={() => value.length > 0 && setIsOpen(true)}
+        placeholder={placeholder}
+        className={className}
+        aria-autocomplete="list"
+        aria-controls="suggestions-list"
+        aria-activedescendant={activeIndex >= 0 ? `suggestion-${activeIndex}` : undefined}
+      />
+      {isOpen && filteredSuggestions.length > 0 && (
+        <ul 
+          id="suggestions-list"
+          className="autocomplete-suggestions"
+          role="listbox"
+        >
+          {filteredSuggestions.map((suggestion, index) => (
+            <li
+              key={index}
+              id={`suggestion-${index}`}
+              onClick={() => handleSuggestionClick(suggestion)}
+              className={`autocomplete-suggestion ${index === activeIndex ? 'active' : ''}`}
+              role="option"
+              aria-selected={index === activeIndex}
+            >
+              {suggestion}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+};
+
 const OPERATORS = {
   is: 'is',
   contains: 'contains',
-  greaterThan: 'greater than',
-  lessThan: 'less than',
+  greaterThan: 'greaterThan',
+  lessThan: 'lessThan',
 };
 
 const FilterPanel: React.FC<FilterPanelProps> = ({ data, onApplyFilters, onClose, isOpen }) => {
@@ -161,7 +295,7 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ data, onApplyFilters, onClose
                     </>
                   ) : (
                     <>
-                      <option value="is">is</option>
+                      <option value="is">equals</option>
                       <option value="contains">contains</option>
                     </>
                   )}
@@ -176,10 +310,10 @@ const FilterPanel: React.FC<FilterPanelProps> = ({ data, onApplyFilters, onClose
                     min="0"
                   />
                 ) : (
-                  <input
-                    type="text"
+                  <AutocompleteInput
                     value={filter.value as string}
-                    onChange={(e) => handleFilterChange(index, 'value', e.target.value)}
+                    onChange={(value) => handleFilterChange(index, 'value', value)}
+                    suggestions={getUniqueValues(filter.field)}
                     placeholder="Type a value"
                     className="value-input"
                   />
